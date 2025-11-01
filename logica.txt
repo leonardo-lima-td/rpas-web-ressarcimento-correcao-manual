@@ -1,0 +1,140 @@
+EXPLICAÇÃO DA LÓGICA DO ALGORITMO - GESTÃO 1273
+==============================================
+
+VISÃO GERAL
+-----------
+Este programa automatiza o processamento de pedidos de ressarcimento, lendo dados de um arquivo CSV,
+fazendo upload de documentos PDF para o Amazon S3 e atualizando o status no banco de dados PostgreSQL.
+
+DEPENDÊNCIAS E IMPORTAÇÕES
+--------------------------
+- pandas: Para leitura e manipulação de dados CSV
+- psycopg2: Para conexão e operações no PostgreSQL
+- boto3: Para upload de arquivos no Amazon S3
+- pathlib: Para manipulação de caminhos de arquivos
+- os + python-dotenv: Para carregar variáveis de ambiente
+
+FLUXO PRINCIPAL DO ALGORITMO
+----------------------------
+
+1. CONFIGURAÇÃO INICIAL
+   - Carrega variáveis de ambiente do arquivo .env
+   - Define credenciais para banco de dados e AWS S3
+
+2. LEITURA DO ARQUIVO CSV
+   - Arquivo: gest1273.csv
+   - Codificação: UTF-8
+   - Separador: vírgula (,)
+   - Tipo de dados: Todas as colunas tratadas como string (dtype=str)
+   
+   Colunas esperadas no CSV:
+   - Coluna 0: ID do pedido
+   - Coluna 1: CPF/CNPJ do cliente
+   - Coluna 2: Código PERDCOMP (identificador único do ressarcimento)
+
+3. PROCESSAMENTO POR LINHA
+   Para cada linha do CSV, executa os seguintes passos:
+
+   a) EXTRAÇÃO DE DADOS
+      - id: ID único do pedido (para atualização no banco)
+      - cpf: CPF/CNPJ usado na estrutura de pastas do S3
+      - perdcomp: Código único do ressarcimento (usado nos nomes dos arquivos)
+      - status: Sempre definido como "sucesso"
+
+   b) CONSTRUÇÃO DOS CAMINHOS S3
+      - Estrutura base: 25084515000148/pedidos/{cpf}/ressarcimento/
+      - Arquivo recibo: recibo_{perdcomp}.pdf
+      - Arquivo detalhamento: {perdcomp}.pdf
+
+   c) LOCALIZAÇÃO DOS ARQUIVOS LOCAIS
+      - Recibo: recibo_{perdcomp}.pdf (no diretório atual)
+      - Detalhamento: {perdcomp}.pdf (no diretório atual)
+
+   d) UPLOAD PARA S3
+      - Conecta ao Amazon S3 usando credenciais do .env
+      - Faz upload do arquivo de recibo
+      - Faz upload do arquivo de detalhamento
+      - Registra logs de sucesso/erro
+
+   e) ATUALIZAÇÃO DO BANCO DE DADOS
+      - Conecta ao PostgreSQL usando credenciais do .env
+      - Executa UPDATE na tabela public.creditos
+      - Campos atualizados:
+        * status_pedido = 'sucesso'
+        * perdcomp = código do ressarcimento
+        * path_s3_recibo = caminho completo no S3
+        * path_s3_detalhamento = caminho completo no S3
+      - Filtro: WHERE id_pedido = {id}
+
+FUNÇÕES AUXILIARES
+------------------
+
+UPDATE_DATABASE(QUERY)
+- Recebe uma string SQL como parâmetro
+- Estabelece conexão com PostgreSQL
+- Executa a query com tratamento de transações
+- Em caso de erro: faz rollback
+- Sempre fecha conexão e cursor
+
+UPLOAD_PDFS(FILE_PATH, S3_KEY)
+- Recebe caminho local do arquivo e chave S3 de destino
+- Cria cliente boto3 para S3
+- Faz upload do arquivo
+- Retorna contador de uploads bem-sucedidos
+
+RENOMEAR_ARQUIVO(CAMINHO_ANTIGO, CAMINHO_NOVO)
+- Função utilitária para renomear arquivos
+- Verifica se arquivo de origem existe
+- Usa pathlib.Path para operações seguras
+- Retorna True/False indicando sucesso
+
+TRATAMENTO DE ERROS
+-------------------
+- Conexão com banco: Logs detalhados de falhas
+- Upload S3: Logs de erro por arquivo
+- Renomeação: Verificação de existência de arquivo
+- Todas as operações críticas têm try/except
+
+VARIÁVEIS DE AMBIENTE NECESSÁRIAS (.env)
+-----------------------------------------
+DB_HOST_PRD=host do banco PostgreSQL
+DB_PORT=porta do banco (normalmente 5432)
+DB_USER=usuário do banco
+DB_PASSWORD=senha do banco
+DB_NAME=nome do banco de dados
+AWS_ACCESS_KEY_ID=chave de acesso AWS
+AWS_SECRET_ACCESS_KEY=chave secreta AWS
+AWS_REGION=região AWS (ex: us-east-2)
+AWS_S3_BUCKET=nome do bucket S3
+
+ESTRUTURA DE DIRETÓRIOS ESPERADA
+--------------------------------
+- Arquivos CSV: gest1273.csv (no diretório raiz)
+- Arquivos PDF: recibo_{perdcomp}.pdf e {perdcomp}.pdf (no diretório raiz)
+- Arquivo .env: variáveis de ambiente (no diretório raiz)
+
+FLUXO DE EXECUÇÃO
+-----------------
+1. python main.py
+2. Carrega configurações
+3. Lê CSV completamente na memória
+4. Processa linha por linha:
+   - Upload para S3
+   - Update no banco
+5. Exibe "Processo concluído!"
+
+CONSIDERACÕES DE PERFORMANCE
+---------------------------
+- Todo o CSV é carregado na memória de uma vez
+- Conexões com banco e S3 são abertas/fechadas por operação
+- Não há processamento paralelo (sequencial)
+- Adequado para volumes pequenos/médios de dados
+
+LOGS E MONITORAMENTO
+--------------------
+- Queries SQL são impressas no console
+- Caminhos locais são exibidos
+- Status de uploads é reportado
+- Erros são logados com detalhes
+- Contador final de uploads bem-sucedidos
+</txt>
